@@ -1,0 +1,81 @@
+- Building...
+
+Application bundle generation failed. [40.374 seconds]
+
+▲ [WARNING] NG8107: The left side of this optional chain operation does not include 'null' or 'undefined' in its type, therefore the '?.' operator can be replaced with the '.' operator. [plugin angular-compiler]
+
+    src/app/pages/products/academic-loans.page.ts:58:101:
+      58 │ ...d mb-3">Loan Amount: ₦{{ loanAmount?.toLocaleString() }}</label>
+         ╵                                       ~~~~~~~~~~~~~~
+
+
+▲ [WARNING] NG8107: The left side of this optional chain operation does not include 'null' or 'undefined' in its type, therefore the '?.' operator can be replaced with the '.' operator. [plugin angular-compiler]
+
+    src/app/pages/products/academic-loans.page.ts:93:88:
+      93 │ ...d text-primary">₦{{ getMonthlyPayment()?.toLocaleString() }}</p>
+         ╵                                           ~~~~~~~~~~~~~~
+
+
+▲ [WARNING] NG8107: The left side of this optional chain operation does not include 'null' or 'undefined' in its type, therefore the '?.' operator can be replaced with the '.' operator. [plugin angular-compiler]
+
+    src/app/pages/products/academic-loans.page.ts:97:89:
+      97 │ ... text-secondary">₦{{ getTotalInterest()?.toLocaleString() }}</p>
+         ╵                                           ~~~~~~~~~~~~~~
+
+
+▲ [WARNING] NG8107: The left side of this optional chain operation does not include 'null' or 'undefined' in its type, therefore the '?.' operator can be replaced with the '.' operator. [plugin angular-compiler]
+
+    src/app/pages/products/p2p-transfers.page.ts:92:86:
+      92 │ ...n-surface">₦{{ transferAmount?.toLocaleString() || '0' }}</span>
+         ╵                                 ~~~~~~~~~~~~~~
+
+
+X [ERROR] NG5002: Incomplete block "solexpay". If you meant to write the @ character, you should use the "&#64;" HTML entity instead. [plugin angular-compiler]
+
+    src/app/pages/company/legal.page.ts:84:21:
+      84 │                 legal@solexpay.ng
+         ╵                      ~~~~~~~~~
+
+
+X [ERROR] NG5002: Incomplete block "solexpay". If you meant to write the @ character, you should use the "&#64;" HTML entity instead. [plugin angular-compiler]
+
+    src/app/pages/company/legal.page.ts:212:55:
+      212 │ ...our support team at support@solexpay.ng or through the app. Pr...
+          ╵                               ~~~~~~~~~
+
+
+X [ERROR] NG5002: Incomplete block "solexpay". If you meant to write the @ character, you should use the "&#64;" HTML entity instead. [plugin angular-compiler]
+
+    src/app/pages/company/legal.page.ts:282:21:
+      282 │                 legal@solexpay.ng
+          ╵                      ~~~~~~~~~
+
+
+X [ERROR] NG5002: Incomplete block "solexpay". If you meant to write the @ character, you should use the "&#64;" HTML entity instead. [plugin angular-compiler]
+
+    src/app/pages/company/press.page.ts:62:21:
+      62 │                 press@solexpay.ng
+         ╵                      ~~~~~~~~~
+
+
+X [ERROR] NG5002: Incomplete block "solexpay". If you meant to write the @ character, you should use the "&#64;" HTML entity instead. [plugin angular-compiler]
+
+    src/app/pages/company/support.page.ts:65:25:
+      65 │                     hello@solexpay.ng
+         ╵                          ~~~~~~~~~
+
+
+X [ERROR] NG5002: Incomplete block "solexpay". If you meant to write the @ character, you should use the "&#64;" HTML entity instead. [plugin angular-compiler]
+
+    src/app/pages/company/support.page.ts:71:27:
+      71 │                     support@solexpay.ng
+         ╵                            ~~~~~~~~~
+
+
+X [ERROR] NG5002: Incomplete block "solexpay". If you meant to write the @ character, you should use the "&#64;" HTML entity instead. [plugin angular-compiler]
+
+    src/app/pages/company/support.page.ts:283:97:
+      283 │ ...on this page, email support@solexpay.ng, call our support line...
+          ╵                               ~~~~~~~~~
+
+
