@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/services/api_service.dart';
+import '../../../../core/state/registration_state.dart';
 import '../../../../shared/widgets/demo_device_shell.dart';
 import '../../../../shared/widgets/primary_button.dart';
 
@@ -18,6 +21,7 @@ class _PhoneEntryScreenState extends State<PhoneEntryScreen> {
   late final TextEditingController _phoneController;
   final FocusNode _focusNode = FocusNode();
   bool _isFocused = false;
+  bool _isLoading = false;
 
   @override
   void initState() {
@@ -38,6 +42,38 @@ class _PhoneEntryScreenState extends State<PhoneEntryScreen> {
   bool get _isValidPhone {
     final String digits = _phoneController.text.replaceAll(RegExp(r'\D'), '');
     return digits.length >= 10 && digits.length <= 11;
+  }
+
+  Future<void> _sendOtp() async {
+    if (!_isValidPhone || _isLoading) return;
+    setState(() => _isLoading = true);
+
+    try {
+      final apiService = context.read<ApiService>();
+      final rawDigits = _phoneController.text.replaceAll(RegExp(r'\D'), '');
+      final formattedPhone = rawDigits.startsWith('0') ? rawDigits : '0$rawDigits';
+
+      final res = await apiService.sendRegistrationOtp(formattedPhone);
+      if (mounted) {
+        final data = res['data'] as Map<String, dynamic>?;
+        final reference = data?['reference'] as String? ?? '';
+        context.read<RegistrationState>().setPhoneAndReference(formattedPhone, reference);
+        context.go('/otp');
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString().replaceAll('Exception: ', '')),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
   @override
@@ -252,9 +288,8 @@ class _PhoneEntryScreenState extends State<PhoneEntryScreen> {
 
                       PrimaryButton(
                         label: 'Send OTP',
-                        onPressed: _isValidPhone
-                            ? () => context.go('/otp')
-                            : null,
+                        isLoading: _isLoading,
+                        onPressed: _isValidPhone ? _sendOtp : null,
                         leading: const Icon(Icons.send_rounded, size: 16),
                       ).animate().fadeIn(delay: 200.ms, duration: 350.ms),
 

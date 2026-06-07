@@ -43,10 +43,19 @@ class _PinConfirmationScreenState extends State<PinConfirmationScreen> {
   }
 
   void _submitPin() {
+    final String pinStr = _pinDigits.join();
+    final Uri parsedUri = Uri.parse(widget.nextRoute);
+    final String nextWithPin = parsedUri.replace(
+      queryParameters: {
+        ...parsedUri.queryParameters,
+        'pin': pinStr,
+      },
+    ).toString();
+
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(const SnackBar(content: Text('PIN confirmed.')));
-    context.go(widget.nextRoute);
+    context.go(nextWithPin);
   }
 
   @override

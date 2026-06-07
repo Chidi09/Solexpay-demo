@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/services/api_service.dart';
 import '../../../../mock/demo_app_state.dart';
 import '../../../../shared/models/transfer_draft.dart';
 import '../../../../shared/widgets/app_header.dart';
@@ -23,6 +24,7 @@ class _P2pTransferScreenState extends State<P2pTransferScreen> {
   final TextEditingController _recipientController = TextEditingController();
   final TextEditingController _amountController = TextEditingController();
   final TextEditingController _noteController = TextEditingController();
+  bool _isLoading = false;
 
   final List<double> _quickAmounts = [
     500,
@@ -42,24 +44,53 @@ class _P2pTransferScreenState extends State<P2pTransferScreen> {
     super.dispose();
   }
 
-  void _continueToReview() {
-    if (!_formKey.currentState!.validate()) return;
+  Future<void> _continueToReview() async {
+    if (!_formKey.currentState!.validate() || _isLoading) return;
+    setState(() => _isLoading = true);
 
-    final double amount =
-        double.tryParse(
-          _amountController.text.replaceAll(',', '').replaceAll(' ', ''),
-        ) ??
-        0;
-    final TransferDraft draft = TransferDraft.p2p(
-      recipientName: _recipientController.text.trim(),
-      amount: amount,
-      note: _noteController.text.trim().isEmpty
-          ? null
-          : _noteController.text.trim(),
-    );
+    try {
+      final apiService = context.read<ApiService>();
+      final String identifier = _recipientController.text.trim();
+      final res = await apiService.lookupP2PRecipient(identifier);
+      
+      final data = res['data'] as Map<String, dynamic>?;
+      if (data == null || data['found'] != true) {
+        throw Exception(data?['message'] ?? 'Recipient not found');
+      }
 
-    context.read<DemoAppState>().setTransferDraft(draft);
-    context.go('/transfer/review');
+      final String fullName = '${data['firstName'] ?? ''} ${data['lastName'] ?? ''}'.trim();
+      final double amount =
+          double.tryParse(
+            _amountController.text.replaceAll(',', '').replaceAll(' ', ''),
+          ) ??
+          0;
+
+      final TransferDraft draft = TransferDraft.p2p(
+        recipientName: fullName.isNotEmpty ? fullName : identifier,
+        amount: amount,
+        note: _noteController.text.trim().isEmpty
+            ? null
+            : _noteController.text.trim(),
+      );
+
+      if (mounted) {
+        context.read<DemoAppState>().setTransferDraft(draft);
+        context.go('/transfer/review');
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString().replaceAll('Exception: ', '')),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
   void _selectQuickAmount(double amount) {
@@ -274,6 +305,7 @@ class _P2pTransferScreenState extends State<P2pTransferScreen> {
 
                             PrimaryButton(
                               label: 'Review transfer',
+                              isLoading: _isLoading,
                               onPressed: _continueToReview,
                             ),
                           ],

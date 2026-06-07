@@ -8,6 +8,9 @@ void main() {
     await tester.pumpWidget(const SolexPayApp());
 
     expect(find.text('SolexPay'), findsOneWidget);
+
+    // Pump to let the splash timer fire so the test does not end with a pending timer
+    await tester.pump(const Duration(seconds: 3));
   });
 
   testWidgets('device shell does not frame narrow layouts', (tester) async {

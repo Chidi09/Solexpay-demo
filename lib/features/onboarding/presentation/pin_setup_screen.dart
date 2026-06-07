@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/services/api_service.dart';
+import '../../../../core/state/registration_state.dart';
 import '../../../../shared/widgets/demo_device_shell.dart';
 import '../../../../shared/widgets/primary_button.dart';
 
@@ -56,11 +59,38 @@ class _PinSetupScreenState extends State<PinSetupScreen> {
   }
 
   Future<void> _finishSetup() async {
-    if (!_canSubmit) return;
+    if (!_canSubmit || _isSaving) return;
     setState(() => _isSaving = true);
-    await Future<void>.delayed(const Duration(milliseconds: 900));
-    if (!mounted) return;
-    context.go('/home');
+
+    try {
+      final regState = context.read<RegistrationState>();
+      final phone = regState.phoneNumber ?? '08012345678';
+      final otp = regState.otpCode ?? '123456';
+      final pinVal = _pinController.text.trim();
+
+      await context.read<ApiService>().setPin(
+        phoneNumber: phone,
+        otpCode: otp,
+        pin: pinVal,
+      );
+
+      if (mounted) {
+        context.go('/home');
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString().replaceAll('Exception: ', '')),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSaving = false);
+      }
+    }
   }
 
   @override

@@ -15,6 +15,7 @@ void main() {
     expect(find.text('SolexPay'), findsOneWidget);
 
     await tester.tap(find.text('Skip'));
+    await tester.pump(const Duration(milliseconds: 500));
     await tester.pumpAndSettle();
 
     expect(find.textContaining('SolexPay'), findsWidgets);

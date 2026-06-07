@@ -4,7 +4,6 @@ import 'package:provider/provider.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../mock/demo_app_state.dart';
-import '../../../../mock/mock_transfer_service.dart';
 import '../../../../shared/models/transfer_draft.dart';
 import '../../../../shared/utils/currency_formatter.dart';
 import '../../../../shared/widgets/demo_device_shell.dart';

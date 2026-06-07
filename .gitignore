@@ -4,6 +4,19 @@
 node_modules
 .pnpm-store
 
+# Flutter/Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+*.iml
+*.ipr
+*.iws
+
+# Reference/scratch illustration downloads (not app assets)
+*.zip
+
 # Production builds
 dist
 build

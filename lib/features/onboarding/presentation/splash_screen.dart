@@ -72,6 +72,26 @@ class _SplashScreenState extends State<SplashScreen>
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: <Widget>[
+                      // Hero illustration
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(28),
+                        child: Image.asset(
+                          'assets/images/splash_illustration.jpg',
+                          width: 168,
+                          height: 168,
+                          fit: BoxFit.contain,
+                        ),
+                      )
+                          .animate()
+                          .fadeIn(duration: 500.ms)
+                          .scale(
+                            begin: const Offset(0.85, 0.85),
+                            duration: 500.ms,
+                            curve: Curves.easeOutBack,
+                          ),
+
+                      const SizedBox(height: 20),
+
                       // Pulsing logo ring
                       AnimatedBuilder(
                         animation: _pulseController,

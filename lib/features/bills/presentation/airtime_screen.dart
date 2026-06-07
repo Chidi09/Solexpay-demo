@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/services/api_service.dart';
 import '../../../../mock/demo_app_state.dart';
 import '../../../../shared/widgets/app_header.dart';
 import '../../../../shared/widgets/branded_icons.dart';
@@ -34,20 +35,46 @@ class _AirtimeScreenState extends State<AirtimeScreen> {
 
   Future<void> _handlePurchase(DemoAppState appState) async {
     final double? amt = double.tryParse(_amount);
-    if (amt == null || amt <= 0) return;
+    if (amt == null || amt <= 0 || _isLoading) return;
     setState(() => _isLoading = true);
-    await Future<void>.delayed(const Duration(milliseconds: 1200));
-    if (!mounted) return;
-    appState.updateWalletBalance(appState.balance - amt);
-    setState(() => _isLoading = false);
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('\u20A6${amt.round()} airtime sent to $_phoneNumber'),
-        backgroundColor: AppColors.accent,
-      ),
-    );
-    if (mounted) context.go('/home');
+
+    try {
+      final apiService = context.read<ApiService>();
+      final String providerCode = _selectedNetwork.toLowerCase();
+      final String walletId = appState.userProfile.walletId;
+
+      await apiService.purchaseAirtime(
+        walletId: walletId.isNotEmpty ? walletId : appState.userProfile.id,
+        providerCode: providerCode,
+        phoneNumber: _phoneNumber,
+        amount: amt,
+      );
+
+      appState.updateWalletBalance(appState.balance - amt);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('₦${amt.round()} airtime sent to $_phoneNumber'),
+            backgroundColor: const Color(0xFF0F7A50),
+          ),
+        );
+        context.go('/home');
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString().replaceAll('Exception: ', '')),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
   @override

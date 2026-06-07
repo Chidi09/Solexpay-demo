@@ -1,4 +1,6 @@
-enum TransferType { p2p, bank }
+enum TransferType { solexpay, bank, p2p }
+
+enum TransferOutcome { success, pending, failed }
 
 class TransferDraft {
   const TransferDraft({
@@ -9,6 +11,8 @@ class TransferDraft {
     this.bankName,
     this.accountNumber,
     this.note,
+    this.bankCode,
+    this.sessionId,
   });
 
   factory TransferDraft.p2p({
@@ -32,6 +36,8 @@ class TransferDraft {
     required double amount,
     double fee = 26,
     String? note,
+    String? bankCode,
+    String? sessionId,
   }) {
     return TransferDraft(
       type: TransferType.bank,
@@ -41,6 +47,8 @@ class TransferDraft {
       bankName: bankName,
       accountNumber: accountNumber,
       note: note,
+      bankCode: bankCode,
+      sessionId: sessionId,
     );
   }
 
@@ -51,6 +59,8 @@ class TransferDraft {
   final String? bankName;
   final String? accountNumber;
   final String? note;
+  final String? bankCode;
+  final String? sessionId;
 
   double get totalDeducted => amount + fee;
 }

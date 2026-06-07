@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/services/api_service.dart';
 import '../../../../mock/demo_app_state.dart';
 import '../../../../shared/utils/currency_formatter.dart';
 import '../../../../shared/widgets/app_header.dart';
@@ -22,6 +23,8 @@ class _SavingsScreenState extends State<SavingsScreen>
     with SingleTickerProviderStateMixin {
   bool _isTopUpLoading = false;
   bool _isWithdrawLoading = false;
+  bool _isLoadingSavings = false;
+  String? _primarySavingsAccountId;
   late final AnimationController _ringController;
 
   @override
@@ -31,6 +34,41 @@ class _SavingsScreenState extends State<SavingsScreen>
       vsync: this,
       duration: const Duration(milliseconds: 1200),
     )..forward();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadSavingsData();
+    });
+  }
+
+  Future<void> _loadSavingsData() async {
+    if (_isLoadingSavings) return;
+    setState(() => _isLoadingSavings = true);
+
+    try {
+      final apiService = context.read<ApiService>();
+      final res = await apiService.getSavingsAccounts();
+      final list = res['data'] as List<dynamic>? ?? [];
+      
+      double totalSavings = 0;
+      String? firstActiveId;
+      for (final item in list) {
+        final Map<String, dynamic> map = item as Map<String, dynamic>;
+        if (map['status'] == 'ACTIVE') {
+          totalSavings += (map['balanceNaira'] as num?)?.toDouble() ?? 0.0;
+          firstActiveId ??= map['id'] as String?;
+        }
+      }
+
+      if (mounted) {
+        context.read<DemoAppState>().updateSavingsBalance(totalSavings);
+        setState(() => _primarySavingsAccountId = firstActiveId);
+      }
+    } catch (e) {
+      debugPrint('Error loading savings accounts: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _isLoadingSavings = false);
+      }
+    }
   }
 
   @override
@@ -40,47 +78,80 @@ class _SavingsScreenState extends State<SavingsScreen>
   }
 
   Future<void> _handleTopUp(DemoAppState appState) async {
+    final accountId = _primarySavingsAccountId;
+    if (accountId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No active savings account found')),
+      );
+      return;
+    }
     setState(() => _isTopUpLoading = true);
-    await Future<void>.delayed(const Duration(milliseconds: 900));
-    if (!mounted) return;
-    appState.updateSavingsBalance(appState.savingsBalance + 5000);
-    appState.updateWalletBalance(appState.balance - 5000);
-    setState(() => _isTopUpLoading = false);
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('₦5,000 added to savings'),
-        backgroundColor: AppColors.secondary,
-      ),
-    );
-    // Re-animate ring on update
-    _ringController
-      ..reset()
-      ..forward();
+    try {
+      final apiService = context.read<ApiService>();
+      await apiService.depositToSavings(
+        savingsAccountId: accountId,
+        amountNaira: 5000,
+      );
+      if (!mounted) return;
+      appState.updateSavingsBalance(appState.savingsBalance + 5000);
+      appState.updateWalletBalance(appState.balance - 5000);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('₦5,000 added to savings'),
+          backgroundColor: AppColors.secondary,
+        ),
+      );
+      _ringController
+        ..reset()
+        ..forward();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Top-up failed: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _isTopUpLoading = false);
+    }
   }
 
   Future<void> _handleWithdraw(DemoAppState appState) async {
     if (appState.savingsBalance <= 0) return;
-    setState(() => _isWithdrawLoading = true);
-    await Future<void>.delayed(const Duration(milliseconds: 900));
-    if (!mounted) return;
+    final accountId = _primarySavingsAccountId;
+    if (accountId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No active savings account found')),
+      );
+      return;
+    }
     final double amount =
         appState.savingsBalance >= 2000 ? 2000 : appState.savingsBalance;
-    appState.updateSavingsBalance(appState.savingsBalance - amount);
-    appState.updateWalletBalance(appState.balance + amount);
-    setState(() => _isWithdrawLoading = false);
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          '${CurrencyFormatter.format(amount)} withdrawn to wallet',
+    setState(() => _isWithdrawLoading = true);
+    try {
+      final apiService = context.read<ApiService>();
+      await apiService.withdrawFromSavings(
+        savingsAccountId: accountId,
+        amountNaira: amount,
+      );
+      if (!mounted) return;
+      appState.updateSavingsBalance(appState.savingsBalance - amount);
+      appState.updateWalletBalance(appState.balance + amount);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${CurrencyFormatter.format(amount)} withdrawn to wallet'),
+          backgroundColor: AppColors.secondary,
         ),
-        backgroundColor: AppColors.secondary,
-      ),
-    );
-    _ringController
-      ..reset()
-      ..forward();
+      );
+      _ringController
+        ..reset()
+        ..forward();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Withdrawal failed: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _isWithdrawLoading = false);
+    }
   }
 
   @override

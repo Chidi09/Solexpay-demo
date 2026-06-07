@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/services/api_service.dart';
 import '../../../../mock/demo_app_state.dart';
 import '../../../../shared/widgets/app_header.dart';
 import '../../../../shared/widgets/branded_icons.dart';
@@ -24,85 +25,93 @@ class _DataScreenState extends State<DataScreen> {
   String _phoneNumber = '';
   _DataBundle? _selectedBundle;
   bool _isLoading = false;
+  List<_DataBundle> _fetchedBundles = [];
+  bool _isLoadingBundles = false;
 
-  final Map<String, List<_DataBundle>> _bundles = <String, List<_DataBundle>>{
-    'MTN': <_DataBundle>[
-      _DataBundle(label: '1GB', duration: '1 day', price: 300, tag: 'Daily'),
-      _DataBundle(label: '3GB', duration: '7 days', price: 1000, tag: 'Weekly'),
-      _DataBundle(
-        label: '15GB',
-        duration: '30 days',
-        price: 3500,
-        tag: 'Student',
-      ),
-      _DataBundle(
-        label: '30GB',
-        duration: '30 days',
-        price: 6000,
-        tag: 'Monthly',
-      ),
-    ],
-    'Airtel': <_DataBundle>[
-      _DataBundle(label: '1.5GB', duration: '1 day', price: 350, tag: 'Daily'),
-      _DataBundle(label: '4GB', duration: '7 days', price: 1200, tag: 'Weekly'),
-      _DataBundle(
-        label: '12GB',
-        duration: '30 days',
-        price: 3200,
-        tag: 'Monthly',
-      ),
-    ],
-    'Glo': <_DataBundle>[
-      _DataBundle(label: '2GB', duration: '1 day', price: 400, tag: 'Daily'),
-      _DataBundle(
-        label: '5.8GB',
-        duration: '7 days',
-        price: 1500,
-        tag: 'Weekly',
-      ),
-      _DataBundle(
-        label: '18GB',
-        duration: '30 days',
-        price: 4000,
-        tag: 'Monthly',
-      ),
-    ],
-    '9mobile': <_DataBundle>[
-      _DataBundle(
-        label: '1GB',
-        duration: '30 days',
-        price: 1000,
-        tag: 'Monthly',
-      ),
-      _DataBundle(
-        label: '5GB',
-        duration: '30 days',
-        price: 2000,
-        tag: 'Monthly',
-      ),
-    ],
-  };
+  final Map<String, List<_DataBundle>> _bundles = <String, List<_DataBundle>>{};
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDataVariations();
+  }
+
+  Future<void> _loadDataVariations() async {
+    setState(() => _isLoadingBundles = true);
+    try {
+      final apiService = context.read<ApiService>();
+      final String providerCode = _selectedNetwork.toLowerCase();
+      final res = await apiService.getDataVariations(providerCode);
+      final list = res['data'] as List<dynamic>? ?? [];
+      
+      setState(() {
+        _fetchedBundles = list.map((item) {
+          final Map<String, dynamic> map = item as Map<String, dynamic>;
+          final double amt = (map['amount'] as num?)?.toDouble() ?? 0.0;
+          return _DataBundle(
+            label: map['name'] as String? ?? 'Data Bundle',
+            duration: '30 days',
+            price: amt,
+            tag: 'Monthly',
+            code: map['variationCode'] as String? ?? '',
+          );
+        }).toList();
+        _selectedBundle = null;
+      });
+    } catch (e) {
+      debugPrint('Error loading variations: $e');
+    } finally {
+      setState(() => _isLoadingBundles = false);
+    }
+  }
 
   List<_DataBundle> get _currentBundles =>
-      _bundles[_selectedNetwork] ?? <_DataBundle>[];
+      _fetchedBundles.isNotEmpty ? _fetchedBundles : (_bundles[_selectedNetwork] ?? <_DataBundle>[]);
 
   Future<void> _handlePurchase(DemoAppState appState) async {
-    if (_selectedBundle == null) return;
+    if (_selectedBundle == null || _isLoading) return;
     setState(() => _isLoading = true);
-    await Future<void>.delayed(const Duration(milliseconds: 1200));
-    if (!mounted) return;
-    appState.updateWalletBalance(appState.balance - _selectedBundle!.price);
-    setState(() => _isLoading = false);
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          '${_selectedBundle!.label} data activated on $_phoneNumber',
-        ),
-        backgroundColor: AppColors.accent,
-      ),
-    );
-    if (mounted) context.go('/home');
+
+    try {
+      final apiService = context.read<ApiService>();
+      final String providerCode = _selectedNetwork.toLowerCase();
+      final String walletId = appState.userProfile.walletId;
+
+      await apiService.purchaseData(
+        walletId: walletId.isNotEmpty ? walletId : appState.userProfile.id,
+        providerCode: providerCode,
+        variationCode: _selectedBundle!.code ?? '1gb',
+        phoneNumber: _phoneNumber,
+        amount: _selectedBundle!.price,
+      );
+
+      appState.updateWalletBalance(appState.balance - _selectedBundle!.price);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '${_selectedBundle!.label} data activated on $_phoneNumber',
+            ),
+            backgroundColor: const Color(0xFF0F7A50),
+          ),
+        );
+        context.go('/home');
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString().replaceAll('Exception: ', '')),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
   @override
@@ -142,6 +151,7 @@ class _DataScreenState extends State<DataScreen> {
                               _selectedNetwork = net;
                               _selectedBundle = null;
                             });
+                            _loadDataVariations();
                           },
                           child: AnimatedContainer(
                             duration: const Duration(milliseconds: 200),
@@ -185,8 +195,18 @@ class _DataScreenState extends State<DataScreen> {
                 const SizedBox(height: 12),
 
                 // Bundle list
-                ..._currentBundles.map((_DataBundle bundle) {
-                  final bool selected = _selectedBundle == bundle;
+                if (_isLoadingBundles)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 24),
+                    child: Center(
+                      child: CircularProgressIndicator(
+                        valueColor: AlwaysStoppedAnimation<Color>(AppColors.accent),
+                      ),
+                    ),
+                  )
+                else
+                  ..._currentBundles.map((_DataBundle bundle) {
+                    final bool selected = _selectedBundle == bundle;
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 8),
                     child: GlassCard(
@@ -357,11 +377,13 @@ class _DataBundle {
     required this.duration,
     required this.price,
     required this.tag,
+    this.code,
   });
   final String label;
   final String duration;
   final double price;
   final String tag;
+  final String? code;
 
   @override
   bool operator ==(Object other) =>

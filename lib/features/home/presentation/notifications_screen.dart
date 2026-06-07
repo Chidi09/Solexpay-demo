@@ -4,12 +4,71 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/services/api_service.dart';
 import '../../../../mock/demo_app_state.dart';
 import '../../../../shared/models/notification_item.dart';
 import '../../../../shared/widgets/demo_device_shell.dart';
 
-class NotificationsScreen extends StatelessWidget {
+class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
+
+  @override
+  State<NotificationsScreen> createState() => _NotificationsScreenState();
+}
+
+class _NotificationsScreenState extends State<NotificationsScreen> {
+  bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadNotifications();
+    });
+  }
+
+  Future<void> _loadNotifications() async {
+    if (_isLoading) return;
+    setState(() => _isLoading = true);
+
+    try {
+      final apiService = context.read<ApiService>();
+      final res = await apiService.getNotifications(page: 0, size: 20);
+      final data = res['data'] as Map<String, dynamic>? ?? {};
+      final list = data['content'] as List<dynamic>? ?? [];
+
+      final List<NotificationItem> items = list.map((item) {
+        final Map<String, dynamic> map = item as Map<String, dynamic>;
+        return NotificationItem(
+          id: map['id'] as String? ?? '',
+          title: map['subject'] as String? ?? 'Notification',
+          message: map['message'] as String? ?? '',
+          createdAt: map['createdAt'] != null ? DateTime.parse(map['createdAt'] as String) : DateTime.now(),
+          isUnread: map['readAt'] == null,
+        );
+      }).toList();
+
+      if (mounted) {
+        context.read<DemoAppState>().replaceNotifications(items);
+      }
+    } catch (e) {
+      debugPrint('Error loading notifications: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _markAsRead(String id) async {
+    try {
+      final apiService = context.read<ApiService>();
+      await apiService.markNotificationAsRead(id);
+      await _loadNotifications();
+    } catch (e) {
+      debugPrint('Error marking notification as read: $e');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -22,69 +81,86 @@ class NotificationsScreen extends StatelessWidget {
           backgroundColor: AppColors.shell,
           resizeToAvoidBottomInset: false,
           body: SafeArea(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                // Header with back button
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(6, 6, 16, 0),
-                  child: Row(
-                    children: <Widget>[
-                      IconButton(
-                        onPressed: () => context.go('/home'),
-                        icon: const Icon(
-                          Icons.arrow_back_ios_new_rounded,
-                          size: 18,
+            child: RefreshIndicator(
+              onRefresh: _loadNotifications,
+              color: AppColors.accent,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  // Header with back button
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(6, 6, 16, 0),
+                    child: Row(
+                      children: <Widget>[
+                        IconButton(
+                          onPressed: () => context.go('/home'),
+                          icon: const Icon(
+                            Icons.arrow_back_ios_new_rounded,
+                            size: 18,
+                          ),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(
+                            minWidth: 36,
+                            minHeight: 36,
+                          ),
                         ),
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(
-                          minWidth: 36,
-                          minHeight: 36,
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                      const Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: <Widget>[
-                            Text(
-                              'Notifications',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.textPrimary,
+                        const SizedBox(width: 4),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              Text(
+                                'Notifications',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.textPrimary,
+                                ),
                               ),
-                            ),
-                            Text(
-                              'Stay on top of wallet and savings activity.',
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: AppColors.textSecondary,
+                              Text(
+                                'Stay on top of wallet and savings activity.',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: AppColors.textSecondary,
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-                const SizedBox(height: 12),
+                  const SizedBox(height: 12),
 
-                // List
-                Expanded(
-                  child: ListView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    itemCount: notifications.length,
-                    itemBuilder: (BuildContext context, int index) {
-                      final NotificationItem item = notifications[index];
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 8),
-                        child: _NotifTile(item: item),
-                      );
-                    },
+                  // List
+                  Expanded(
+                    child: notifications.isEmpty
+                        ? const Center(
+                            child: Text(
+                              'No notifications yet.',
+                              style: TextStyle(
+                                color: AppColors.textSecondary,
+                                fontSize: 13,
+                              ),
+                            ),
+                          )
+                        : ListView.builder(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            itemCount: notifications.length,
+                            itemBuilder: (BuildContext context, int index) {
+                              final NotificationItem item = notifications[index];
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 8),
+                                child: GestureDetector(
+                                  onTap: item.isUnread ? () => _markAsRead(item.id) : null,
+                                  child: _NotifTile(item: item),
+                                ),
+                              );
+                            },
+                          ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),

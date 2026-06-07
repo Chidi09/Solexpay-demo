@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/services/api_service.dart';
 import '../../../../mock/demo_app_state.dart';
 import '../../../../shared/models/transaction_item.dart';
 import '../../../../shared/utils/currency_formatter.dart';
@@ -21,6 +22,58 @@ class HistoryScreen extends StatefulWidget {
 
 class _HistoryScreenState extends State<HistoryScreen> {
   _Filter _activeFilter = _Filter.all;
+  bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadTransactions();
+    });
+  }
+
+  Future<void> _loadTransactions() async {
+    if (_isLoading) return;
+    setState(() => _isLoading = true);
+
+    try {
+      final apiService = context.read<ApiService>();
+      final appState = context.read<DemoAppState>();
+
+      final txRes = await apiService.getTransactionHistory(limit: 50);
+      final txData = txRes['data'] as Map<String, dynamic>? ?? {};
+      final txItems = txData['items'] as List<dynamic>? ?? [];
+
+      final List<TransactionItem> list = txItems.map((item) {
+        final Map<String, dynamic> map = item as Map<String, dynamic>;
+        final String typeStr = (map['type'] as String? ?? 'debit').toLowerCase();
+        final String statusStr = (map['status'] as String? ?? 'completed').toLowerCase();
+        final String desc = map['description'] as String? ?? '';
+        final String title = desc.isNotEmpty ? desc : (typeStr == 'credit' ? 'Received Money' : 'Sent Money');
+        
+        return TransactionItem(
+          id: map['transactionId'] as String? ?? map['reference'] as String? ?? '',
+          title: title,
+          subtitle: typeStr == 'credit' ? 'Received' : 'Transfer',
+          amount: (map['amountNaira'] as num?)?.toDouble() ?? 0.0,
+          occurredAt: map['createdAt'] != null ? DateTime.parse(map['createdAt'] as String) : DateTime.now(),
+          type: typeStr == 'credit' ? TransactionType.credit : TransactionType.debit,
+          status: statusStr == 'completed' || statusStr == 'success'
+              ? TransactionStatus.completed
+              : (statusStr == 'pending' ? TransactionStatus.pending : TransactionStatus.failed),
+        );
+      }).toList();
+
+      appState.replaceTransactions(list);
+
+    } catch (e) {
+      debugPrint('Error loading transactions: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
 
   List<TransactionItem> _applyFilter(List<TransactionItem> txns) {
     switch (_activeFilter) {
@@ -148,29 +201,39 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
                 // ── Transaction list ───────────────────────────────────────
                 Expanded(
-                  child: grouped.isEmpty
-                      ? _EmptyState(filter: _activeFilter)
-                      : ListView.builder(
-                          padding:
-                              const EdgeInsets.symmetric(horizontal: 16),
-                          itemCount: grouped.length,
-                          itemBuilder: (BuildContext context, int index) {
-                            final String dateLabel =
-                                grouped.keys.elementAt(index);
-                            final List<TransactionItem> items =
-                                grouped.values.elementAt(index);
-                            return Padding(
-                              padding: const EdgeInsets.only(bottom: 14),
-                              child: _DateGroup(
-                                dateLabel: dateLabel,
-                                items: items,
-                              ),
-                            ).animate().fadeIn(
-                                  delay: Duration(milliseconds: index * 40),
-                                  duration: 300.ms,
-                                );
-                          },
-                        ),
+                  child: RefreshIndicator(
+                    onRefresh: _loadTransactions,
+                    color: AppColors.accent,
+                    child: grouped.isEmpty
+                        ? SingleChildScrollView(
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            child: SizedBox(
+                              height: 400,
+                              child: _EmptyState(filter: _activeFilter),
+                            ),
+                          )
+                        : ListView.builder(
+                            padding:
+                                const EdgeInsets.symmetric(horizontal: 16),
+                            itemCount: grouped.length,
+                            itemBuilder: (BuildContext context, int index) {
+                              final String dateLabel =
+                                  grouped.keys.elementAt(index);
+                              final List<TransactionItem> items =
+                                  grouped.values.elementAt(index);
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 14),
+                                child: _DateGroup(
+                                  dateLabel: dateLabel,
+                                  items: items,
+                                ),
+                              ).animate().fadeIn(
+                                    delay: Duration(milliseconds: index * 40),
+                                    duration: 300.ms,
+                                  );
+                            },
+                          ),
+                  ),
                 ),
               ],
             ),

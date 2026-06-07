@@ -4,8 +4,8 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/services/api_service.dart';
 import '../../../../mock/demo_app_state.dart';
-import '../../../../mock/mock_transfer_service.dart';
 import '../../../../shared/models/transfer_draft.dart';
 import '../../../../shared/utils/currency_formatter.dart';
 import '../../../../shared/widgets/demo_device_shell.dart';
@@ -16,11 +16,9 @@ class TransferAnimationScreen extends StatefulWidget {
   const TransferAnimationScreen({
     super.key,
     this.draft,
-    this.service = const MockTransferService(),
   });
 
   final TransferDraft? draft;
-  final MockTransferService service;
 
   @override
   State<TransferAnimationScreen> createState() =>
@@ -56,16 +54,46 @@ class _TransferAnimationScreenState extends State<TransferAnimationScreen>
     );
     final TransferDraft? resolvedDraft =
         widget.draft ?? appState?.activeTransferDraft;
-    if (resolvedDraft == null) {
-      return;
-    }
-    if (appState == null) {
+    if (resolvedDraft == null || appState == null) {
       return;
     }
 
-    final TransferOutcome outcome = await widget.service.submitTransfer(
-      resolvedDraft,
-    );
+    TransferOutcome outcome = TransferOutcome.success;
+    try {
+      final apiService = context.read<ApiService>();
+      final String pin = GoRouterState.of(context).uri.queryParameters['pin'] ?? '1234';
+
+      if (resolvedDraft.type == TransferType.bank) {
+        await apiService.initiateNipTransfer(
+          bankCode: resolvedDraft.bankCode ?? '058',
+          accountNumber: resolvedDraft.accountNumber ?? '',
+          accountName: resolvedDraft.recipientName,
+          sessionId: resolvedDraft.sessionId ?? '',
+          amount: resolvedDraft.amount,
+          description: resolvedDraft.note,
+          pin: pin,
+        );
+      } else {
+        await apiService.p2pTransfer(
+          recipientIdentifier: resolvedDraft.recipientName,
+          amount: resolvedDraft.amount,
+          pin: pin,
+          description: resolvedDraft.note,
+        );
+      }
+      outcome = TransferOutcome.success;
+    } catch (e) {
+      outcome = TransferOutcome.failed;
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString().replaceAll('Exception: ', '')),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
+
     if (!mounted) {
       return;
     }

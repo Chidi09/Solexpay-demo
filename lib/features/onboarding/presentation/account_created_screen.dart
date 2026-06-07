@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../../mock/demo_app_state.dart';
 import '../../../../shared/widgets/demo_device_shell.dart';
 import '../../../../shared/widgets/primary_button.dart';
 
@@ -18,10 +20,6 @@ class _AccountCreatedScreenState extends State<AccountCreatedScreen>
     with SingleTickerProviderStateMixin {
   late final AnimationController _confettiController;
   bool _copied = false;
-
-  // Mock account number revealed on success
-  static const String _accountNumber = '9012 3456 78';
-  static const String _bankName = 'SolexPay MFB';
 
   @override
   void initState() {
@@ -38,8 +36,8 @@ class _AccountCreatedScreenState extends State<AccountCreatedScreen>
     super.dispose();
   }
 
-  void _copyAccountNumber() {
-    Clipboard.setData(const ClipboardData(text: '9012345678'));
+  void _copyAccountNumber(String number) {
+    Clipboard.setData(ClipboardData(text: number.replaceAll(' ', '')));
     setState(() => _copied = true);
     Future<void>.delayed(const Duration(seconds: 2), () {
       if (mounted) setState(() => _copied = false);
@@ -48,6 +46,12 @@ class _AccountCreatedScreenState extends State<AccountCreatedScreen>
 
   @override
   Widget build(BuildContext context) {
+    final appState = context.watch<DemoAppState>();
+    final accountNumber = appState.userProfile.accountNumber.isEmpty 
+        ? 'Generating...' 
+        : appState.userProfile.accountNumber;
+    final bankName = 'SolexPay MFB';
+
     return Scaffold(
       body: DemoDeviceShell(
         child: Scaffold(
@@ -151,7 +155,7 @@ class _AccountCreatedScreenState extends State<AccountCreatedScreen>
 
                     // Account number card
                     GestureDetector(
-                          onTap: _copyAccountNumber,
+                          onTap: () => _copyAccountNumber(accountNumber),
                           child: AnimatedContainer(
                             duration: const Duration(milliseconds: 200),
                             padding: const EdgeInsets.symmetric(
@@ -193,7 +197,7 @@ class _AccountCreatedScreenState extends State<AccountCreatedScreen>
                                       ),
                                       const SizedBox(height: 4),
                                       Text(
-                                        _accountNumber,
+                                        accountNumber,
                                         style: const TextStyle(
                                           fontSize: 22,
                                           fontWeight: FontWeight.w800,
@@ -202,8 +206,8 @@ class _AccountCreatedScreenState extends State<AccountCreatedScreen>
                                         ),
                                       ),
                                       const SizedBox(height: 2),
-                                      const Text(
-                                        _bankName,
+                                      Text(
+                                        bankName,
                                         style: TextStyle(
                                           fontSize: 11,
                                           color: AppColors.textSecondary,

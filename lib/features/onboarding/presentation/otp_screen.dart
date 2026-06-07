@@ -4,8 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/services/api_service.dart';
+import '../../../../core/services/token_service.dart';
+import '../../../../core/state/registration_state.dart';
 import '../../../../shared/widgets/demo_device_shell.dart';
 import '../../../../shared/widgets/primary_button.dart';
 
@@ -55,11 +59,47 @@ class _OtpScreenState extends State<OtpScreen> {
       RegExp(r'^\d{6}$').hasMatch(_otpController.text.trim());
 
   Future<void> _verifyOtp() async {
-    if (!_canVerify) return;
+    if (!_canVerify || _isVerifying) return;
     setState(() => _isVerifying = true);
-    await Future<void>.delayed(const Duration(milliseconds: 900));
-    if (!mounted) return;
-    context.go('/bvn');
+
+    try {
+      final regState = context.read<RegistrationState>();
+      final phone = regState.phoneNumber ?? '';
+      final otp = _otpController.text.trim();
+      final apiService = context.read<ApiService>();
+      final tokenService = context.read<TokenService>();
+
+      final response = await apiService.register(
+        phoneNumber: phone,
+        otpCode: otp,
+        firstName: 'Demo',
+        lastName: 'User',
+      );
+
+      regState.setOtpCode(otp);
+
+      final token = response['data']?['token'] as String?;
+      if (token != null && token.isNotEmpty) {
+        await tokenService.saveToken(token);
+      }
+
+      if (mounted) {
+        context.go('/bvn');
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString().replaceAll('Exception: ', '')),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isVerifying = false);
+      }
+    }
   }
 
   @override
@@ -147,24 +187,32 @@ class _OtpScreenState extends State<OtpScreen> {
 
                       const SizedBox(height: 6),
 
-                      RichText(
-                        text: const TextSpan(
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: AppColors.textSecondary,
-                            height: 1.5,
-                          ),
-                          children: <InlineSpan>[
-                            TextSpan(text: 'Code sent to '),
-                            TextSpan(
-                              text: '+234 *** **** **78',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.textPrimary,
+                      Builder(
+                        builder: (context) {
+                          final phone = context.watch<RegistrationState>().phoneNumber ?? '';
+                          final displayPhone = phone.length >= 11
+                              ? '${phone.substring(0, 4)} *** *${phone.substring(7)}'
+                              : phone;
+                          return RichText(
+                            text: TextSpan(
+                              style: const TextStyle(
+                                fontSize: 13,
+                                color: AppColors.textSecondary,
+                                height: 1.5,
                               ),
+                              children: <InlineSpan>[
+                                const TextSpan(text: 'Code sent to '),
+                                TextSpan(
+                                  text: displayPhone,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    color: AppColors.textPrimary,
+                                  ),
+                                ),
+                              ],
                             ),
-                          ],
-                        ),
+                          );
+                        }
                       ).animate().fadeIn(delay: 120.ms),
 
                       const SizedBox(height: 28),
@@ -199,40 +247,21 @@ class _OtpScreenState extends State<OtpScreen> {
                                           ),
                                     width: active ? 2 : 1,
                                   ),
-                                  boxShadow: active
-                                      ? <BoxShadow>[
-                                          BoxShadow(
-                                            color: AppColors.accent.withValues(
-                                              alpha: 0.12,
-                                            ),
-                                            blurRadius: 8,
-                                            offset: const Offset(0, 3),
-                                          ),
-                                        ]
-                                      : null,
                                 ),
                                 child: Center(
-                                  child: filled
-                                      ? Text(
-                                          raw[i],
-                                          style: const TextStyle(
-                                            fontSize: 20,
-                                            fontWeight: FontWeight.w800,
-                                            color: AppColors.accent,
-                                          ),
-                                        )
-                                      : active
-                                      ? Container(
-                                          width: 2,
-                                          height: 20,
-                                          color: AppColors.accent,
-                                        )
-                                      : null,
+                                  child: Text(
+                                    filled ? raw[i] : '',
+                                    style: const TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w700,
+                                      color: AppColors.textPrimary,
+                                    ),
+                                  ),
                                 ),
                               );
                             }),
                           ),
-                          // Invisible full-width text field that captures input
+                          // Hidden text field overlay
                           Positioned.fill(
                             child: Opacity(
                               opacity: 0,
@@ -268,11 +297,28 @@ class _OtpScreenState extends State<OtpScreen> {
                                 ),
                               )
                             : GestureDetector(
-                                onTap: () {
-                                  _otpController.clear();
-                                  setState(() {});
-                                  _startResendTimer();
-                                },
+                                 onTap: () async {
+                                   _otpController.clear();
+                                   setState(() {});
+                                   _startResendTimer();
+                                   try {
+                                     final regState = context.read<RegistrationState>();
+                                     final apiService = context.read<ApiService>();
+                                     final phone = regState.phoneNumber ?? '';
+                                     if (phone.isNotEmpty) {
+                                       await apiService.sendRegistrationOtp(phone);
+                                     }
+                                   } catch (e) {
+                                     if (context.mounted) {
+                                       ScaffoldMessenger.of(context).showSnackBar(
+                                         SnackBar(
+                                           content: Text(e.toString().replaceAll('Exception: ', '')),
+                                           backgroundColor: AppColors.error,
+                                         ),
+                                       );
+                                     }
+                                   }
+                                 },
                                 child: const Text(
                                   'Resend OTP',
                                   style: TextStyle(

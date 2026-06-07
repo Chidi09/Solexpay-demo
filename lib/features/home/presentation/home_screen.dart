@@ -4,6 +4,8 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/services/api_service.dart';
+import '../../../../shared/models/user_profile.dart';
 import '../../../../mock/demo_app_state.dart';
 import '../../../../shared/models/transaction_item.dart';
 import '../../../../shared/utils/currency_formatter.dart';
@@ -20,6 +22,88 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   bool _isBalanceVisible = true;
+  bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadHomeData();
+    });
+  }
+
+  Future<void> _loadHomeData() async {
+    if (_isLoading) return;
+    setState(() => _isLoading = true);
+
+    try {
+      final apiService = context.read<ApiService>();
+      final appState = context.read<DemoAppState>();
+
+      // 1. Get Wallet Balance
+      final balanceRes = await apiService.getWalletBalance();
+      final balanceData = balanceRes['data'] as Map<String, dynamic>? ?? {};
+      final double balanceVal = (balanceData['balanceNaira'] as num?)?.toDouble() ?? 0.0;
+      final String accNum = balanceData['accountNumber'] as String? ?? '9012345678';
+      
+      appState.updateWalletBalance(balanceVal);
+
+      // 2. Get Profile
+      final profileRes = await apiService.getProfile();
+      final profileData = profileRes['data'] as Map<String, dynamic>? ?? {};
+      
+      final String firstName = profileData['firstName'] as String? ?? 'Demo';
+      final String lastName = profileData['lastName'] as String? ?? 'User';
+      final String phone = profileData['phoneNumber'] as String? ?? '';
+      final String userId = profileData['id'] as String? ?? '';
+
+      final userProfile = UserProfile(
+        id: userId,
+        fullName: '$firstName $lastName'.trim(),
+        tag: '@${firstName.toLowerCase()}',
+        phoneNumber: phone,
+        school: 'Solex University',
+        accountNumber: accNum,
+        walletId: balanceData['walletId'] as String? ?? userId,
+      );
+      
+      appState.replaceUserProfile(userProfile);
+
+      // 3. Get Transactions
+      final txRes = await apiService.getTransactionHistory(limit: 20);
+      final txData = txRes['data'] as Map<String, dynamic>? ?? {};
+      final txItems = txData['items'] as List<dynamic>? ?? [];
+
+      final List<TransactionItem> list = txItems.map((item) {
+        final Map<String, dynamic> map = item as Map<String, dynamic>;
+        final String typeStr = (map['type'] as String? ?? 'debit').toLowerCase();
+        final String statusStr = (map['status'] as String? ?? 'completed').toLowerCase();
+        final String desc = map['description'] as String? ?? '';
+        final String title = desc.isNotEmpty ? desc : (typeStr == 'credit' ? 'Received Money' : 'Sent Money');
+        
+        return TransactionItem(
+          id: map['transactionId'] as String? ?? map['reference'] as String? ?? '',
+          title: title,
+          subtitle: typeStr == 'credit' ? 'Received' : 'Transfer',
+          amount: (map['amountNaira'] as num?)?.toDouble() ?? 0.0,
+          occurredAt: map['createdAt'] != null ? DateTime.parse(map['createdAt'] as String) : DateTime.now(),
+          type: typeStr == 'credit' ? TransactionType.credit : TransactionType.debit,
+          status: statusStr == 'completed' || statusStr == 'success'
+              ? TransactionStatus.completed
+              : (statusStr == 'pending' ? TransactionStatus.pending : TransactionStatus.failed),
+        );
+      }).toList();
+
+      appState.replaceTransactions(list);
+
+    } catch (e) {
+      debugPrint('Error loading home data: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
 
   void _toggleBalanceVisibility() {
     setState(() {
@@ -43,18 +127,21 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Column(
               children: <Widget>[
                 Expanded(
-                  child: ListView(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 10,
-                    ),
-                    children: <Widget>[
-                      // ── Header ──────────────────────────────────────────
-                      AppHeader.home(
-                        unreadCount: appState.unreadNotifications,
-                        onProfileTap: () => context.go('/notifications'),
+                  child: RefreshIndicator(
+                    onRefresh: _loadHomeData,
+                    color: AppColors.accent,
+                    child: ListView(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 10,
                       ),
-                      const SizedBox(height: 12),
+                      children: <Widget>[
+                        // ── Header ──────────────────────────────────────────
+                        AppHeader.home(
+                          unreadCount: appState.unreadNotifications,
+                          onProfileTap: () => context.go('/notifications'),
+                        ),
+                        const SizedBox(height: 12),
 
                       // ── Balance card ────────────────────────────────────
                       _BalanceCard(
@@ -135,6 +222,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ],
                   ),
                 ),
+              ),
                 // Manual bottom nav (avoids overlap with home pill - §8.4)
                 _BottomNav(
                   selectedIndex: 0,

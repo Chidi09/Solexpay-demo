@@ -2,8 +2,6 @@ import 'dart:collection';
 
 import 'package:flutter/foundation.dart';
 
-import '../core/constants/demo_data.dart';
-import 'mock_transfer_service.dart';
 import '../shared/models/loan_state.dart';
 import '../shared/models/notification_item.dart';
 import '../shared/models/transaction_item.dart';
@@ -27,12 +25,22 @@ class DemoAppState extends ChangeNotifier {
 
   factory DemoAppState.seeded() {
     return DemoAppState(
-      userProfile: demoUserProfile,
-      balance: demoWalletBalance,
-      savingsBalance: demoSavingsBalance,
-      loanState: demoLoanState,
-      transactions: demoTransactions,
-      notifications: demoNotifications,
+      userProfile: const UserProfile(
+        id: '',
+        fullName: '',
+        tag: '',
+        phoneNumber: '',
+        school: '',
+        accountNumber: '',
+        walletId: '',
+      ),
+      balance: 0.0,
+      savingsBalance: 0.0,
+      loanState: const LoanState(
+        isEligible: false,
+      ),
+      transactions: [],
+      notifications: [],
     );
   }
 
@@ -82,8 +90,20 @@ class DemoAppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  void replaceTransactions(List<TransactionItem> newTransactions) {
+    _transactions.clear();
+    _transactions.addAll(newTransactions);
+    notifyListeners();
+  }
+
   void addNotification(NotificationItem item) {
     _notifications.insert(0, item);
+    notifyListeners();
+  }
+
+  void replaceNotifications(List<NotificationItem> newNotifications) {
+    _notifications.clear();
+    _notifications.addAll(newNotifications);
     notifyListeners();
   }
 

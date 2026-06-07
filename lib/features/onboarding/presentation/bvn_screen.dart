@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/services/api_service.dart';
+import '../../../../core/state/registration_state.dart';
 import '../../../../shared/widgets/demo_device_shell.dart';
 import '../../../../shared/widgets/primary_button.dart';
 
@@ -18,6 +21,7 @@ class _BvnScreenState extends State<BvnScreen> {
   late final TextEditingController _bvnController;
   final FocusNode _focusNode = FocusNode();
   bool _isFocused = false;
+  bool _isLoading = false;
 
   @override
   void initState() {
@@ -37,6 +41,35 @@ class _BvnScreenState extends State<BvnScreen> {
 
   bool get _isValidBvn =>
       RegExp(r'^\d{11}$').hasMatch(_bvnController.text.trim());
+
+  Future<void> _verifyBvn() async {
+    if (!_isValidBvn || _isLoading) return;
+    setState(() => _isLoading = true);
+
+    try {
+      final apiService = context.read<ApiService>();
+      final bvn = _bvnController.text.trim();
+      
+      await apiService.verifyBvn(bvn);
+      if (mounted) {
+        context.read<RegistrationState>().setBvn(bvn);
+        context.go('/selfie');
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString().replaceAll('Exception: ', '')),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -299,9 +332,8 @@ class _BvnScreenState extends State<BvnScreen> {
 
                       PrimaryButton(
                         label: 'Continue',
-                        onPressed: _isValidBvn
-                            ? () => context.go('/selfie')
-                            : null,
+                        isLoading: _isLoading,
+                        onPressed: _isValidBvn ? _verifyBvn : null,
                       ).animate().fadeIn(delay: 250.ms),
 
                       const SizedBox(height: 24),
