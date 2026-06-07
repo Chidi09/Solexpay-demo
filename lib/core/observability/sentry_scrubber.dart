@@ -54,12 +54,18 @@ SentryEvent? scrubSentryEvent(SentryEvent event, Hint hint) {
   final request = event.request;
   if (request == null) return event;
 
-  return event.copyWith(
-    request: request.copyWith(
-      data: request.data == null ? null : _scrub(request.data),
-      headers: _scrubHeaders(request.headers),
-    ),
+  event.request = SentryRequest(
+    url: request.url,
+    method: request.method,
+    queryString: request.queryString,
+    cookies: request.cookies,
+    fragment: request.fragment,
+    apiTarget: request.apiTarget,
+    data: request.data == null ? null : _scrub(request.data),
+    headers: _scrubHeaders(request.headers),
+    env: request.env,
   );
+  return event;
 }
 
 /// Redacts sensitive fields from breadcrumb payloads (e.g. HTTP breadcrumbs
@@ -69,7 +75,6 @@ Breadcrumb? scrubSentryBreadcrumb(Breadcrumb? breadcrumb, Hint hint) {
   final data = breadcrumb?.data;
   if (breadcrumb == null || data == null) return breadcrumb;
 
-  return breadcrumb.copyWith(
-    data: Map<String, dynamic>.from(_scrub(data) as Map),
-  );
+  breadcrumb.data = Map<String, dynamic>.from(_scrub(data) as Map);
+  return breadcrumb;
 }

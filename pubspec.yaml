@@ -42,8 +42,8 @@ dependencies:
   dio: ^5.4.3+1
   flutter_secure_storage: ^9.0.0
   local_auth: ^3.0.1
-  sentry_flutter: ^8.14.2
-  sentry_dio: ^8.14.2
+  sentry_flutter: ^9.21.0
+  sentry_dio: ^9.21.0
 
 dev_dependencies:
   flutter_test:
